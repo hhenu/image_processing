@@ -70,7 +70,6 @@ def _bilinear(img: np.ndarray, size: tuple) -> np.ndarray:
     return new_img
 
 
-
 def _bicubic(img: np.ndarray, size: tuple) -> np.ndarray:
     """
     Bicubic interpolation
@@ -156,9 +155,9 @@ def grayscale(img: np.ndarray, method: str = "avg") -> np.ndarray:
         msg = (f"The given grayscaling method '{method}' is invalid/not implemented yet. "
                f"Valid options are 'avg', 'lightness', 'weighted', and 'luminosity'.")
         raise ValueError(msg)
-    gray_img = np.zeros(shape=img.shape[:-1], dtype=np.uint8)
+    gray_img = np.zeros(shape=img.shape, dtype=np.uint8)
     if method == "avg":
-        gray_img[:, :] = np.mean(img, axis=2, keepdims=False)
+        gray_img[:, :, :] = np.mean(img, axis=2, keepdims=True)
         return gray_img
     if method == "lightness":
         mins = np.min(img, axis=2, keepdims=True)
@@ -212,7 +211,6 @@ def main() -> None:
         img = img[:, :, :3] * 255
         img = img.astype(np.uint8)
     img = grayscale(img=img, method="avg")
-    print(img)
     plt.imshow(img)
     plt.title("Original")
 
