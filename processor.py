@@ -15,6 +15,65 @@ import matplotlib.pyplot as plt
 from matplotlib import image
 
 
+def get_component(img: np.ndarray, channel: int) -> np.ndarray:
+    """
+    Returns a single colour channel, i.e., a single component
+    of the RGB values
+    :param img: Da image itself in full RGB form
+    :param channel: The colour channel to pick. The RGB channels are
+        encoded in numbers such as R == 0, G == 1, and B == 2.
+    :return:
+    """
+    if channel not in (0, 1, 2):
+        msg = "Invalid colour channel. Valid options are 0 (red), 1 (green), " \
+              "or 2 (blue)."
+        raise ValueError(msg)
+    new = np.zeros(shape=img.shape, dtype=np.uint8)
+    chan = img[:, :, channel]
+    new[:, :, channel] = chan
+    return new
+
+
+def grayscale(img: np.ndarray, method: str = "avg") -> np.ndarray:
+    """
+    Convert an RGB colour image into grayscale using the methods shown in
+    https://www.baeldung.com/cs/convert-rgb-to-grayscale
+    :param img:
+    :param method: The way that the RGB value is converted into grayscale.
+        The options are "avg", "lightness", and "luminosity".
+    :return:
+    """
+    methods = ["avg", "lightness", "weighted", "luminosity"]
+    if method not in methods:
+        msg = (f"The given grayscaling method '{method}' is invalid/not implemented yet. "
+               f"Valid options are {", ".join(methods)}.")
+        raise ValueError(msg)
+    # TODO: Decide whether to return 1 or 3 channels or make it configurable
+    gray_img = np.zeros(shape=img.shape[:-1], dtype=np.uint8)
+    if method == "avg":
+        gray_img[:, :] = np.mean(img, axis=2, keepdims=False)
+        return gray_img
+    if method == "lightness":
+        mins = np.min(img, axis=2, keepdims=True)
+        maxs = np.max(img, axis=2, keepdims=True)
+        mins = mins.astype(np.uint16)
+        maxs = maxs.astype(np.uint16)
+        gray_img[:, :, :] = (mins + maxs) / 2
+        return gray_img
+    if method == "weighted":
+        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+        z = .299 * r + .587 * g + .114 * b
+        z.shape = (z.shape[0], z.shape[1], 1)
+        gray_img[:, :, :] = z
+        return gray_img
+    if method == "luminosity":
+        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
+        z = .2126 * r + .7152 * g + .0722 * b
+        z.shape = (z.shape[0], z.shape[1], 1)
+        gray_img[:, :, :] = z
+        return gray_img
+
+
 def _nearest(img: np.ndarray, size: tuple) -> np.ndarray:
     """
     Nearest neighbor interpolation
@@ -24,7 +83,7 @@ def _nearest(img: np.ndarray, size: tuple) -> np.ndarray:
     """
     new_r, new_c = size
     old_r, old_c = img.shape[:2]
-    new_img = np.zeros(shape=(new_r, new_c, img.shape[-1]), dtype=np.uint8)
+    new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
     for j in range(new_r):
         for i in range(new_c):
             r = math.floor(j / new_r * old_r)
@@ -42,42 +101,35 @@ def _bilinear(img: np.ndarray, size: tuple) -> np.ndarray:
     :param size:
     :return:
     """
+    # TODO: Handle multiple color channels
     new_r, new_c = size
     old_r, old_c = img.shape[:2]
-    new_img = np.zeros(shape=(new_r, new_c, img.shape[-1]), dtype=np.uint8)
-    for j in range(new_r):
-        for i in range(new_c):
-            x = i + .5
-            y = j + .5
-            x1 = math.floor(j / new_r * old_r)
-            y1 = math.floor(i / new_c * old_c)
-            x2 = x1 + 1
-            y2 = y1 + 1
+    x_arr = np.linspace(start=0, stop=old_c - 1, num=new_c, endpoint=False)
+    y_arr = np.linspace(start=0, stop=old_r - 1, num=new_r, endpoint=False)
+    new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
+    for j, y in enumerate(y_arr):
+        for i, x in enumerate(x_arr):
+            x1, x2 = math.floor(x), math.ceil(x)
+            y1, y2 = math.floor(y), math.ceil(y)
+            if x1 == x2 and x1 < old_c:
+                x2 += 1
+            if y1 == y2 and y1 < old_r:
+                y2 += 1
             dx1 = x - x1
             dx2 = x2 - x
-            dy2 = y2 - y
             dy1 = y - y1
-            f11 = img[x1, y1]
-            f12 = img[x1, y2]
-            f21 = img[x2, y1]
-            f22 = img[x2, y2]
+            dy2 = y2 - y
+            f11 = img[y1, x1]
+            f12 = img[y2, x1]
+            f21 = img[y1, x2]
+            f22 = img[y2, x2]
             f_arr = np.array([[f11, f12], [f21, f22]])
             a = 1 / ((x2 - x1) * (y2 - y1))
-            x_arr = np.array([dx2, dx1])
-            y_arr = np.array([dy2, dy1]).T
-            new_img[j, i] = a * x_arr * np.dot(f_arr, y_arr)
+            xx = np.array([dx2, dx1])
+            yy = np.array([dy2, dy1]).T
+            new_img[j, i] = a * np.dot(xx, np.dot(f_arr, yy))
 
     return new_img
-
-
-def _bicubic(img: np.ndarray, size: tuple) -> np.ndarray:
-    """
-    Bicubic interpolation
-    :param img:
-    :param size:
-    :return:
-    """
-    print("bicubic")
 
 
 def resize(img: np.ndarray, scaler: int | float = None,
@@ -108,8 +160,7 @@ def resize(img: np.ndarray, scaler: int | float = None,
         msg = "Too few image dimensions provided. The form of the tuple must be " \
               "(height, width)."
         raise ValueError(msg)
-    method_funs = {"nearest": _nearest, "bilinear": _bilinear,
-                   "bicubic": _bicubic}
+    method_funs = {"nearest": _nearest, "bilinear": _bilinear}
     if method not in method_funs.keys():
         ops = ", ".join(list(method_funs.keys()))
         msg = f"Invalid option for the interpolation method. Valid options " \
@@ -123,86 +174,22 @@ def resize(img: np.ndarray, scaler: int | float = None,
         return method_funs[method](img, size)
 
 
-def get_component(img: np.ndarray, channel: int) -> np.ndarray:
-    """
-    Returns a single colour channel, i.e., a single component
-    of the RGB values
-    :param img: Da image itself in full RGB form
-    :param channel: The colour channel to pick. The RGB channels are
-        encoded in numbers such as R == 0, G == 1, and B == 2.
-    :return:
-    """
-    if channel not in (0, 1, 2):
-        msg = "Invalid colour channel. Valid options are 0 (red), 1 (green), " \
-              "or 2 (blue)."
-        raise ValueError(msg)
-    new = np.zeros(shape=img.shape, dtype=np.uint8)
-    chan = img[:, :, channel]
-    new[:, :, channel] = chan
-    return new
-
-
-def grayscale(img: np.ndarray, method: str = "avg") -> np.ndarray:
-    """
-    Convert an RGB colour image into grayscale using the methods shown in
-    https://www.baeldung.com/cs/convert-rgb-to-grayscale
-    :param img:
-    :param method: The way that the RGB value is converted into grayscale.
-        The options are "avg", "lightness", and "luminosity".
-    :return:
-    """
-    if method not in ["avg", "lightness", "weighted", "luminosity"]:
-        msg = (f"The given grayscaling method '{method}' is invalid/not implemented yet. "
-               f"Valid options are 'avg', 'lightness', 'weighted', and 'luminosity'.")
-        raise ValueError(msg)
-    gray_img = np.zeros(shape=img.shape, dtype=np.uint8)
-    if method == "avg":
-        gray_img[:, :, :] = np.mean(img, axis=2, keepdims=True)
-        return gray_img
-    if method == "lightness":
-        mins = np.min(img, axis=2, keepdims=True)
-        maxs = np.max(img, axis=2, keepdims=True)
-        mins = mins.astype(np.uint16)
-        maxs = maxs.astype(np.uint16)
-        gray_img[:, :, :] = (mins + maxs) / 2
-        return gray_img
-    if method == "weighted":
-        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-        z = .299 * r + .587 * g + .114 * b
-        z.shape = (z.shape[0], z.shape[1], 1)
-        gray_img[:, :, :] = z
-        return gray_img
-    if method == "luminosity":
-        r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
-        z = .2126 * r + .7152 * g + .0722 * b
-        z.shape = (z.shape[0], z.shape[1], 1)
-        gray_img[:, :, :] = z
-        return gray_img
-
-
-def display_image_in_actual_size(img: np.ndarray) -> None:
+def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
     """
     Straight from
     https://stackoverflow.com/questions/28816046/displaying-different-images-with-
     actual-size-in-matplotlib-subplot
     :param img:
+    :param title:
     :return:
     """
     dpi = mpl.rcParams['figure.dpi']
-    height, width, depth = img.shape
-
-    # What size does the figure need to be in inches to fit the image?
+    height, width = img.shape
     figsize = width / float(dpi), height / float(dpi)
-
-    # Create a figure of the right size with one axes that takes up the full figure
-    fig = plt.figure(figsize=figsize)
-    ax = fig.add_axes((0, 0, 1, 1))
-
-    # Hide spines, ticks, etc.
-    ax.axis('off')
-
-    # Display the image.
-    plt.imshow(img)
+    _ = plt.figure(figsize=figsize)
+    if title is not None:
+        plt.title(title)
+    plt.imshow(img, cmap="gray")
 
 
 def main() -> None:
@@ -210,15 +197,17 @@ def main() -> None:
     if img.dtype != np.uint8:
         img = img[:, :, :3] * 255
         img = img.astype(np.uint8)
-    img = grayscale(img=img, method="avg")
-    plt.imshow(img)
+    img = grayscale(img=img, method="bruh")
+    plt.imshow(img, cmap="gray")
     plt.title("Original")
 
-    plt.figure()
-    new = resize(img=img, size=(64, 64), method="bilinear")
-    plt.title("Resized")
-    # plt.imshow(new)
-    display_image_in_actual_size(img=new)
+    new_near = resize(img=img, scaler=1.5, method="nearest")
+    new_int = resize(img=img, scaler=1.5, method="bilinear")
+    # plt.figure()
+    # plt.title("Resized")
+    # plt.imshow(new, cmap="gray")
+    display_in_actual_size(img=new_near, title="nearest")
+    display_in_actual_size(img=new_int, title="bilinear")
     plt.show()
 
 
