@@ -13,6 +13,7 @@ import matplotlib as mpl
 import matplotlib.pyplot as plt
 
 from matplotlib import image
+from typing import Any, Iterable
 
 
 def get_component(img: np.ndarray, channel: int) -> np.ndarray:
@@ -93,6 +94,18 @@ def _nearest(img: np.ndarray, size: tuple) -> np.ndarray:
     return new_img
 
 
+def _enumerate(seq: Iterable[Any], start: int = 0) -> tuple[int, Any]:
+    """
+    Pycharm seems to complain of the type hint of the built in 'enumerate()',
+    so let's wrap it
+    :param seq:
+    :param start:
+    :return:
+    """
+    for i, item in enumerate(seq, start=start):
+        yield i, item
+
+
 def _bilinear(img: np.ndarray, size: tuple) -> np.ndarray:
     """
     Bilinear interpolation
@@ -107,8 +120,8 @@ def _bilinear(img: np.ndarray, size: tuple) -> np.ndarray:
     x_arr = np.linspace(start=0, stop=old_c - 1, num=new_c, endpoint=False)
     y_arr = np.linspace(start=0, stop=old_r - 1, num=new_r, endpoint=False)
     new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
-    for j, y in enumerate(y_arr):
-        for i, x in enumerate(x_arr):
+    for j, y in _enumerate(y_arr):
+        for i, x in _enumerate(x_arr):
             x1, x2 = math.floor(x), math.ceil(x)
             y1, y2 = math.floor(y), math.ceil(y)
             if x1 == x2 and x1 < old_c:
@@ -197,7 +210,7 @@ def main() -> None:
     if img.dtype != np.uint8:
         img = img[:, :, :3] * 255
         img = img.astype(np.uint8)
-    img = grayscale(img=img, method="bruh")
+    img = grayscale(img=img, method="avg")
     plt.imshow(img, cmap="gray")
     plt.title("Original")
 
