@@ -16,6 +16,20 @@ from matplotlib import image
 from typing import Any, Iterable
 
 
+def load_img(img_path: str) -> np.ndarray:
+    """
+    Loads the given image file into a numpy array (in RGB) and with pixel
+    values in range 0 ... 255
+    :param img_path:
+    :return:
+    """
+    img = image.imread(img_path)
+    if img.dtype != np.uint8:
+        img = img[:, :, :3] * 255
+        img = img.astype(np.uint8)
+    return img
+
+
 def get_component(img: np.ndarray, channel: int) -> np.ndarray:
     """
     Returns a single colour channel, i.e., a single component
@@ -35,44 +49,53 @@ def get_component(img: np.ndarray, channel: int) -> np.ndarray:
     return new
 
 
-def grayscale(img: np.ndarray, method: str = "avg") -> np.ndarray:
+def grayscale(img: np.ndarray, method: str = "avg", channels: int = 3) -> np.ndarray:
     """
     Convert an RGB colour image into grayscale using the methods shown in
     https://www.baeldung.com/cs/convert-rgb-to-grayscale
     :param img:
     :param method: The way that the RGB value is converted into grayscale.
-        The options are "avg", "lightness", and "luminosity".
+    The options are "avg", "lightness", "weighted", and "luminosity".
+    :param channels: The amount of colour channels to be returnd in the image.
+    Can be either 1 or 3.
     :return:
     """
     methods = ["avg", "lightness", "weighted", "luminosity"]
     if method not in methods:
-        msg = (f"The given grayscaling method '{method}' is invalid/not implemented yet. "
+        msg = (f"The given grayscaling method '{method}' is invalid/not implemented. "
                f"Valid options are {", ".join(methods)}.")
         raise ValueError(msg)
-    # TODO: Decide whether to return 1 or 3 channels or make it configurable
-    gray_img = np.zeros(shape=img.shape[:-1], dtype=np.uint8)
+    if channels not in (1, 3):
+        msg = (f"Unsupported value for parameter channels {channels}. "
+               f"Default value of 3 will be used.")
+        print(msg)
+        channels = 3
+    gray_img = np.zeros(shape=img.shape, dtype=np.uint8)
     if method == "avg":
-        gray_img[:, :] = np.mean(img, axis=2, keepdims=False)
-        return gray_img
-    if method == "lightness":
+        gray_img[:, :, :] = np.mean(img, axis=2, keepdims=True)
+    elif method == "lightness":
         mins = np.min(img, axis=2, keepdims=True)
         maxs = np.max(img, axis=2, keepdims=True)
         mins = mins.astype(np.uint16)
         maxs = maxs.astype(np.uint16)
         gray_img[:, :, :] = (mins + maxs) / 2
-        return gray_img
-    if method == "weighted":
+    elif method == "weighted":
         r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
         z = .299 * r + .587 * g + .114 * b
         z.shape = (z.shape[0], z.shape[1], 1)
         gray_img[:, :, :] = z
-        return gray_img
-    if method == "luminosity":
+    elif method == "luminosity":
         r, g, b = img[:, :, 0], img[:, :, 1], img[:, :, 2]
         z = .2126 * r + .7152 * g + .0722 * b
         z.shape = (z.shape[0], z.shape[1], 1)
         gray_img[:, :, :] = z
+    else:
+        assert False, "Unreachable"
+
+    if channels == 3:
         return gray_img
+    # Reduce the image to one color channel (e.g. the first one)
+    return gray_img[:, :, 0]
 
 
 def _nearest(img: np.ndarray, size: tuple) -> np.ndarray:
@@ -189,7 +212,7 @@ def resize(img: np.ndarray, scaler: int | float = None,
 
 def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
     """
-    Straight from
+    Straight from (note the link is in two lines):
     https://stackoverflow.com/questions/28816046/displaying-different-images-with-
     actual-size-in-matplotlib-subplot
     :param img:
@@ -206,11 +229,9 @@ def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
 
 
 def main() -> None:
-    img = image.imread("./images/smol.jpg")
-    if img.dtype != np.uint8:
-        img = img[:, :, :3] * 255
-        img = img.astype(np.uint8)
-    img = grayscale(img=img, method="avg")
+    img_path = "./images/smol.jpg"
+    img = load_img(img_path=img_path)
+    img = grayscale(img=img, method="lightness", channels=1)
     plt.imshow(img, cmap="gray")
     plt.title("Original")
 
