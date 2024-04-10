@@ -107,7 +107,11 @@ def _nearest(img: np.ndarray, size: tuple) -> np.ndarray:
     """
     new_r, new_c = size
     old_r, old_c = img.shape[:2]
-    new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
+    try:
+        new_shape = (new_r, new_c, img.shape[2])
+    except IndexError:
+        new_shape = (new_r, new_c)
+    new_img = np.zeros(shape=new_shape, dtype=np.uint8)
     for j in range(new_r):
         for i in range(new_c):
             r = math.floor(j / new_r * old_r)
@@ -137,34 +141,64 @@ def _bilinear(img: np.ndarray, size: tuple) -> np.ndarray:
     :param size:
     :return:
     """
-    # TODO: Handle multiple color channels
     new_r, new_c = size
     old_r, old_c = img.shape[:2]
     x_arr = np.linspace(start=0, stop=old_c - 1, num=new_c, endpoint=False)
     y_arr = np.linspace(start=0, stop=old_r - 1, num=new_r, endpoint=False)
-    new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
-    for j, y in _enumerate(y_arr):
-        for i, x in _enumerate(x_arr):
-            x1, x2 = math.floor(x), math.ceil(x)
-            y1, y2 = math.floor(y), math.ceil(y)
-            if x1 == x2 and x1 < old_c:
-                x2 += 1
-            if y1 == y2 and y1 < old_r:
-                y2 += 1
-            dx1 = x - x1
-            dx2 = x2 - x
-            dy1 = y - y1
-            dy2 = y2 - y
-            f11 = img[y1, x1]
-            f12 = img[y2, x1]
-            f21 = img[y1, x2]
-            f22 = img[y2, x2]
-            f_arr = np.array([[f11, f12], [f21, f22]])
-            a = 1 / ((x2 - x1) * (y2 - y1))
-            xx = np.array([dx2, dx1])
-            yy = np.array([dy2, dy1]).T
-            new_img[j, i] = a * np.dot(xx, np.dot(f_arr, yy))
-
+    try:
+        chan = img.shape[2]
+        new_img = np.zeros(shape=(new_r, new_c, chan), dtype=np.uint8)
+    except IndexError:
+        chan = 1
+        new_img = np.zeros(shape=(new_r, new_c), dtype=np.uint8)
+    # TODO: This coud use some refactoring I reckon
+    if chan == 1:
+        for j, y in _enumerate(y_arr):
+            for i, x in _enumerate(x_arr):
+                x1, x2 = math.floor(x), math.ceil(x)
+                y1, y2 = math.floor(y), math.ceil(y)
+                if x1 == x2 and x1 < old_c:
+                    x2 += 1
+                if y1 == y2 and y1 < old_r:
+                    y2 += 1
+                dx1 = x - x1
+                dx2 = x2 - x
+                dy1 = y - y1
+                dy2 = y2 - y
+                f11 = img[y1, x1]
+                f12 = img[y2, x1]
+                f21 = img[y1, x2]
+                f22 = img[y2, x2]
+                f_arr = np.array([[f11, f12], [f21, f22]])
+                a = 1 / ((x2 - x1) * (y2 - y1))
+                xx = np.array([dx2, dx1])
+                yy = np.array([dy2, dy1]).T
+                new_img[j, i] = a * np.dot(xx, np.dot(f_arr, yy))
+    elif chan == 3:
+        for j, y in _enumerate(y_arr):
+            for i, x in _enumerate(x_arr):
+                for c in range(chan):
+                    x1, x2 = math.floor(x), math.ceil(x)
+                    y1, y2 = math.floor(y), math.ceil(y)
+                    if x1 == x2 and x1 < old_c:
+                        x2 += 1
+                    if y1 == y2 and y1 < old_r:
+                        y2 += 1
+                    dx1 = x - x1
+                    dx2 = x2 - x
+                    dy1 = y - y1
+                    dy2 = y2 - y
+                    f11 = img[y1, x1, c]
+                    f12 = img[y2, x1, c]
+                    f21 = img[y1, x2, c]
+                    f22 = img[y2, x2, c]
+                    f_arr = np.array([[f11, f12], [f21, f22]])
+                    a = 1 / ((x2 - x1) * (y2 - y1))
+                    xx = np.array([dx2, dx1])
+                    yy = np.array([dy2, dy1]).T
+                    new_img[j, i, c] = a * np.dot(xx, np.dot(f_arr, yy))
+    else:
+        raise ValueError(f"Invalid amount of colour channels {chan}")
     return new_img
 
 
@@ -220,7 +254,7 @@ def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
     :return:
     """
     dpi = mpl.rcParams['figure.dpi']
-    height, width = img.shape
+    height, width = img.shape[:2]
     figsize = width / float(dpi), height / float(dpi)
     _ = plt.figure(figsize=figsize)
     if title is not None:
@@ -231,7 +265,7 @@ def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
 def main() -> None:
     img_path = "./images/smol.jpg"
     img = load_img(img_path=img_path)
-    img = grayscale(img=img, method="lightness", channels=1)
+    # img = grayscale(img=img, method="lightness", channels=3)
     plt.imshow(img, cmap="gray")
     plt.title("Original")
 
