@@ -215,7 +215,7 @@ def resize(img: np.ndarray, scaler: int | float = None,
     :param size: The exact size of the new image in pixels. The form of the
     tuple is (height, width).
     :param method: The interpolation method used to interpolate the pixel
-    values. Options are "nearest", "bilinear", and "bicubic".
+    values. Options are "nearest" and "bilinear".
     :return:
     """
     if scaler is None and size is None:
