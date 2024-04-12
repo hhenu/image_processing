@@ -1,13 +1,11 @@
 """
-Some functionality to process images. Note that basically everything shown
-here can be done (better) using builtin functionality. This is done just
-for fun and for learning purposes, not with efficiency/applicability in mind.
-
-Some info is in wikipedia:
-https://en.wikipedia.org/wiki/Digital_image_processing
+Some functionality to process images or something. Quite inefficient
+and probably somewhat incorrect solutions but it is what it is. Made for
+learning purposes I guess instead of applicability and general usability.
 """
 
 import math
+import kernels
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
@@ -244,6 +242,64 @@ def resize(img: np.ndarray, scaler: int | float = None,
         return method_funs[method](img, size)
 
 
+def conv(img: np.ndarray, kern: np.ndarray) -> np.ndarray:
+    """
+    Should convolute the image with the given kernel. Follows the pseudocode
+    example from https://en.wikipedia.org/wiki/Kernel_(image_processing).
+    Image edges are now handled by wrapping over the image.
+    :param img:
+    :param kern:
+    :return:
+    """
+    k_row, k_col = kern.shape[:2]
+    if len(kern.shape) > 2 or k_row != k_col:
+        msg = f"Kernel must be a square 2d array, now got {k_row}x{k_col}"
+        raise ValueError(msg)
+    if k_row != 3 and k_row != 5:
+        raise ValueError(f"Kernel must be either 3x3 or 5x5, now got {k_row}x{k_col}")
+    r, c = img.shape[:2]
+    try:
+        chan = img.shape[2]
+        new_img = np.zeros(shape=(r, c, chan), dtype=np.uint8)
+    except IndexError:
+        chan = 1
+        new_img = np.zeros(shape=(r, c), dtype=np.uint8)
+    dx, dy = k_col // 2, k_row // 2
+    dx_r, dy_r = range(-dx, dx + 1), range(-dy, dy + 1)
+    if chan == 1:
+        for j, row in _enumerate(seq=img):
+            for i, px in _enumerate(seq=row):
+                acc = 0
+                for y, k_row in _enumerate(seq=kern):
+                    for x, k_val in _enumerate(seq=k_row):
+                        dx, dy = dx_r[x], dy_r[y]
+                        ind_x = (i + dx) % c
+                        ind_y = (j + dy) % r
+                        acc += k_val * img[ind_y, ind_x]
+
+                new_img[j, i] = acc
+
+    elif chan == 3:
+        # TODO: Quite a bit of indentation here
+        for j, row in _enumerate(seq=img):
+            for i, px in _enumerate(seq=row):
+                for ch in range(chan):
+                    acc = 0
+                    for y, k_row in _enumerate(seq=kern):
+                        for x, k_val in _enumerate(seq=k_row):
+                            dx, dy = dx_r[x], dy_r[y]
+                            ind_x = (i + dx) % c
+                            ind_y = (j + dy) % r
+                            acc += k_val * img[ind_y, ind_x, ch]
+
+                    new_img[j, i, ch] = acc
+
+    else:
+        raise ValueError(f"Unsupported amount of colour channels, {chan}")
+
+    return new_img
+
+
 def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
     """
     Straight from (note the link is in two lines):
@@ -265,17 +321,14 @@ def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
 def main() -> None:
     img_path = "./images/smol.jpg"
     img = load_img(img_path=img_path)
-    # img = grayscale(img=img, method="lightness", channels=3)
+    # img = grayscale(img=img, method="lightness", channels=1)
     plt.imshow(img, cmap="gray")
     plt.title("Original")
 
-    new_near = resize(img=img, scaler=1.5, method="nearest")
-    new_int = resize(img=img, scaler=1.5, method="bilinear")
-    # plt.figure()
-    # plt.title("Resized")
-    # plt.imshow(new, cmap="gray")
-    display_in_actual_size(img=new_near, title="nearest")
-    display_in_actual_size(img=new_int, title="bilinear")
+    plt.figure()
+    plt.title("Convoluted")
+    new = conv(img=img, kern=kernels.gauss_blur5)
+    plt.imshow(new, cmap="gray")
     plt.show()
 
 
