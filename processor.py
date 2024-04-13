@@ -267,12 +267,12 @@ def conv(img: np.ndarray, kern: np.ndarray) -> np.ndarray:
     dx, dy = k_col // 2, k_row // 2
     dx_r, dy_r = range(-dx, dx + 1), range(-dy, dy + 1)
     if chan == 1:
-        for j, row in _enumerate(seq=img):
-            for i, px in _enumerate(seq=row):
+        for j in range(r):
+            for i in range(c):
                 acc = 0
-                for y, k_row in _enumerate(seq=kern):
-                    for x, k_val in _enumerate(seq=k_row):
-                        dx, dy = dx_r[x], dy_r[y]
+                for k_j, k_row in _enumerate(seq=kern):
+                    for k_i, k_val in _enumerate(seq=k_row):
+                        dx, dy = dx_r[k_i], dy_r[k_j]
                         ind_x = (i + dx) % c
                         ind_y = (j + dy) % r
                         acc += k_val * img[ind_y, ind_x]
@@ -281,13 +281,13 @@ def conv(img: np.ndarray, kern: np.ndarray) -> np.ndarray:
 
     elif chan == 3:
         # TODO: Quite a bit of indentation here
-        for j, row in _enumerate(seq=img):
-            for i, px in _enumerate(seq=row):
+        for j in range(r):
+            for i in range(c):
                 for ch in range(chan):
                     acc = 0
-                    for y, k_row in _enumerate(seq=kern):
-                        for x, k_val in _enumerate(seq=k_row):
-                            dx, dy = dx_r[x], dy_r[y]
+                    for k_j, k_row in _enumerate(seq=kern):
+                        for k_i, k_val in _enumerate(seq=k_row):
+                            dx, dy = dx_r[k_i], dy_r[k_j]
                             ind_x = (i + dx) % c
                             ind_y = (j + dy) % r
                             acc += k_val * img[ind_y, ind_x, ch]
@@ -296,6 +296,39 @@ def conv(img: np.ndarray, kern: np.ndarray) -> np.ndarray:
 
     else:
         raise ValueError(f"Unsupported amount of colour channels, {chan}")
+
+    return new_img
+
+
+def sobel(img: np.ndarray) -> np.ndarray:
+    """
+    Applies the Sobel operator to a grayscaled image
+
+    See https://en.wikipedia.org/wiki/Sobel_operator
+    :param img:
+    :return:
+    """
+    if len(img.shape) > 2:
+        msg = (f"Sobel operator is now only supported for 2d images, now got shape "
+               f"{img.shape}")
+        raise ValueError(msg)
+    kern_x = kernels.sobel_x
+    kern_y = kernels.sobel_y
+    r, c = img.shape[:2]
+    new_img = np.zeros(shape=(r, c))
+    for j in range(r):
+        for i in range(c):
+            acc_x, acc_y = 0, 0
+            for k_j, dy in enumerate(range(-1, 2)):
+                for k_i, dx in enumerate(range(-1, 2)):
+                    k_x = kern_x[k_j, k_i]
+                    k_y = kern_y[k_j, k_i]
+                    ind_x = (i + dx) % c
+                    ind_y = (j + dy) % r
+                    acc_x += k_x * img[ind_y, ind_x]
+                    acc_y += k_y * img[ind_y, ind_x]
+
+            new_img[j, i] = np.sqrt(acc_x * acc_x + acc_y * acc_y)
 
     return new_img
 
@@ -321,13 +354,13 @@ def display_in_actual_size(img: np.ndarray, title: str = None) -> None:
 def main() -> None:
     img_path = "./images/smol.jpg"
     img = load_img(img_path=img_path)
-    # img = grayscale(img=img, method="lightness", channels=1)
+    img = grayscale(img=img, method="luminosity", channels=1)
     plt.imshow(img, cmap="gray")
     plt.title("Original")
 
     plt.figure()
     plt.title("Convoluted")
-    new = conv(img=img, kern=kernels.gauss_blur5)
+    new = sobel(img=img)
     plt.imshow(new, cmap="gray")
     plt.show()
 
